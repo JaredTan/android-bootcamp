@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">ClickMe</string>
+    <string name="uber_button_true">True</string>
+    <string name="uber_button_false">False</string>
+    <string name="uber_button_incorrect">Incorrect</string>
+    <string name="uber_button_correct">Correct</string>
+    <string name="uber_question">True or false?</string>
+    <string name="uber_next_button">Next</string>
+    <string name="question_oceans">The Pacific Ocean is larger than
+  the Atlantic Ocean.</string>
+    <string name="question_mideast">The Suez Canal connects the Red Sea
+  and the Indian Ocean.</string>
+    <string name="question_africa">The source of the Nile River is in Egypt.</string>
+    <string name="question_americas">The Amazon River is the longest river
+  in the Americas.</string>
+    <string name="question_asia">Lake Baikal is the world\'s oldest and deepest
+  freshwater lake.</string>
+    <string name="warning_text">Are you sure you want to cheat</string>
+    <string name="show_answer_button">Show Answer</string>
+    <string name="cheat_button">Cheat!</string>
+    <string name="judgment_toast">Tsk tsk, you cheated :p</string>
+    <string name="title_activity_cheat">CheatActivity</string>
+</resources>
