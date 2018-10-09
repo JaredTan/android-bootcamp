@@ -1,18 +1,18 @@
 package com.uber.jaredtan.criminalintent;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
-import android.widget.DatePicker;
 import android.widget.EditText;
 
 import java.util.Date;
@@ -22,11 +22,12 @@ import static android.widget.CompoundButton.*;
 
 public class CrimeFragment extends Fragment {
 
+    private static final int REQUEST_CODE_DIALOG = 0;
     private static final String ARG_CRIME_ID = "crime_id";
     private static final String DATE_PICKER_FRAGMENT = "date_picker_fragment";
     private Crime mCrime;
     private EditText mEditTextField;
-    private Button mButton;
+    private Button mDateButton;
     private CheckBox mCheckbox;
 
     public static CrimeFragment newInstance(UUID crimeId) {
@@ -35,6 +36,18 @@ public class CrimeFragment extends Fragment {
         CrimeFragment fragment = new CrimeFragment();
         fragment.setArguments(args);
         return fragment;
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (resultCode != Activity.RESULT_OK) {
+            return;
+        }
+        if (requestCode == REQUEST_CODE_DIALOG) {
+            Date date = (Date) data.getSerializableExtra(DatePickerFragment.ARG_DATE);
+            mCrime.setDate(date);
+            updateDate();
+        }
     }
 
     @Override
@@ -65,13 +78,14 @@ public class CrimeFragment extends Fragment {
 //                blank
             }
         });
-        mButton = v.findViewById(R.id.crime_date);
-        mButton.setText(mCrime.getDate().toString());
-        mButton.setOnClickListener(new View.OnClickListener() {
+        mDateButton = v.findViewById(R.id.crime_date);
+        updateDate();
+        mDateButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 FragmentManager manager = getFragmentManager();
-                DatePickerFragment dialog = new DatePickerFragment();
+                DatePickerFragment dialog = DatePickerFragment.newInstance(mCrime.getDate());
+                dialog.setTargetFragment(CrimeFragment.this, REQUEST_CODE_DIALOG);
                 dialog.show(manager, DATE_PICKER_FRAGMENT);
             }
         });
@@ -85,6 +99,10 @@ public class CrimeFragment extends Fragment {
             }
         });
         return v;
+    }
+
+    private void updateDate() {
+        mDateButton.setText(mCrime.getDate().toString());
     }
 
 
