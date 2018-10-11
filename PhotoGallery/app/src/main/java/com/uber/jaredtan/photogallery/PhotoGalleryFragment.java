@@ -1,8 +1,13 @@
 package com.uber.jaredtan.photogallery;
 
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
+import android.support.constraint.Placeholder;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -10,6 +15,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -22,6 +28,7 @@ public class PhotoGalleryFragment extends Fragment {
 
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
+    private ThumbnailDownloader<PhotoHolder> mPhotoHolderThumbnailDownloader;
 
     public static PhotoGalleryFragment newInstance() {
         return new PhotoGalleryFragment();
@@ -32,7 +39,39 @@ public class PhotoGalleryFragment extends Fragment {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
         new FetchItemsTask().execute();
+
+//        link the main thread to the photo download handler.
+        Handler responseHandler = new Handler();
+        mPhotoHolderThumbnailDownloader = new ThumbnailDownloader<>(responseHandler); mPhotoHolderThumbnailDownloader.setThumbnailDownloadListener(
+                new ThumbnailDownloader.ThumbnailDownloadListener<PhotoHolder>() {
+                    @Override
+                    public void onThumbnailDownloaded(PhotoHolder photoHolder,
+                                                      Bitmap bitmap) {
+                        Drawable drawable = new BitmapDrawable(getResources(), bitmap);
+                        photoHolder.bindDrawable(drawable);
+                    }
+                } );
+
+        //        create the helper thread and start it.
+        mPhotoHolderThumbnailDownloader.start();
+        mPhotoHolderThumbnailDownloader.getLooper();
+        Log.i(TAG, "helper thread started");
     }
+
+//    destroy the helper handler
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mPhotoHolderThumbnailDownloader.quit();
+        Log.i(TAG, "helper thread destroyed");
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        mPhotoHolderThumbnailDownloader.clearQueue();
+    }
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -54,14 +93,14 @@ public class PhotoGalleryFragment extends Fragment {
     }
 
     private class PhotoHolder extends RecyclerView.ViewHolder {
-        private TextView mTitleTextView;
+        private ImageView mItemImageView;
         public PhotoHolder(View itemView) {
             super(itemView);
-            mTitleTextView = (TextView) itemView;
+            mItemImageView = itemView.findViewById(R.id.item_image_view);
         }
 
-        public void bindGalleryItem(GalleryItem item) {
-            mTitleTextView.setText(item.toString());
+        public void bindDrawable(Drawable drawable) {
+            mItemImageView.setImageDrawable(drawable);
         }
     }
 
@@ -75,8 +114,9 @@ public class PhotoGalleryFragment extends Fragment {
         @NonNull
         @Override
         public PhotoHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int i) {
-            TextView textView = new TextView(getActivity());
-            return new PhotoHolder(textView);
+            LayoutInflater inflater = LayoutInflater.from(getActivity());
+            View view = inflater.inflate(R.layout.list_item_gallery, viewGroup, false);
+            return new PhotoHolder(view);
         }
 
         @Override
@@ -87,7 +127,10 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         public void onBindViewHolder(@NonNull PhotoHolder photoHolder, int i) {
             GalleryItem galleryItem = mGalleryItems.get(i);
-            photoHolder.bindGalleryItem(galleryItem);
+//            get the resource drawable, and bind it to the photo holder.
+            Drawable placeholder = getResources().getDrawable(R.drawable.bill_up_close);
+            photoHolder.bindDrawable(placeholder);
+            mPhotoHolderThumbnailDownloader.queueThumbnail(photoHolder, galleryItem.getUrl());
         }
     }
 
