@@ -1,5 +1,6 @@
 package com.uber.jaredtan.photogallery;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -13,9 +14,13 @@ import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.SearchView;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -38,15 +43,18 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        new FetchItemsTask().execute();
+        setHasOptionsMenu(true);
+
+        updateItems();
+        PollService.setServiceAlarm(getActivity(), true);
 
 //        link the main thread to the photo download handler.
         Handler responseHandler = new Handler();
-        mPhotoHolderThumbnailDownloader = new ThumbnailDownloader<>(responseHandler); mPhotoHolderThumbnailDownloader.setThumbnailDownloadListener(
+        mPhotoHolderThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
+        mPhotoHolderThumbnailDownloader.setThumbnailDownloadListener(
                 new ThumbnailDownloader.ThumbnailDownloadListener<PhotoHolder>() {
                     @Override
-                    public void onThumbnailDownloaded(PhotoHolder photoHolder,
-                                                      Bitmap bitmap) {
+                    public void onThumbnailDownloaded(PhotoHolder photoHolder, Bitmap bitmap) {
                         Drawable drawable = new BitmapDrawable(getResources(), bitmap);
                         photoHolder.bindDrawable(drawable);
                     }
@@ -83,6 +91,68 @@ public class PhotoGalleryFragment extends Fragment {
         return v;
     }
 
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater menuInflater) {
+        super.onCreateOptionsMenu(menu, menuInflater);
+        menuInflater.inflate(R.menu.fragment_photo_gallery, menu);
+
+        MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        final SearchView searchView = (SearchView) searchItem.getActionView();
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String s) {
+                Log.d(TAG, "QueryTextSubmit: " + s);
+                QueryPreferences.setStoredQuery(getActivity(), s);
+                updateItems();
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String s) {
+                Log.d(TAG, "QueryTextChange: " + s);
+                return false;
+            }
+        });
+
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String query = QueryPreferences.getStoredQuery(getActivity());
+                searchView.setQuery(query, false);
+            }
+        });
+
+        MenuItem toggleItem = menu.findItem(R.id.menu_item_toggle_polling);
+        if (PollService.isServiceAlarmOn(getActivity())) {
+            toggleItem.setTitle(R.string.stop_polling);
+        } else {
+            toggleItem.setTitle(R.string.start_polling);
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_item_clear:
+                QueryPreferences.setStoredQuery(getActivity(), null);
+                updateItems();
+                return true;
+            case R.id.menu_item_toggle_polling:
+                boolean shouldStartAlarm = !PollService.isServiceAlarmOn(getActivity());
+                PollService.setServiceAlarm(getActivity(), shouldStartAlarm);
+                getActivity().invalidateOptionsMenu();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void updateItems() {
+        String query = QueryPreferences.getStoredQuery(getActivity());
+        new FetchItemsTask(query).execute();
+    }
+
     private void setupAdapter() {
 //        each time a new recycler view is created, it is reconfigured with the correct adapter.
 //        we check that the fragment has been attached to an activity, because async tasks can be running on
@@ -111,12 +181,20 @@ public class PhotoGalleryFragment extends Fragment {
             mGalleryItems = galleryItems;
         }
 
-        @NonNull
         @Override
-        public PhotoHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int i) {
+        public PhotoHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
             LayoutInflater inflater = LayoutInflater.from(getActivity());
             View view = inflater.inflate(R.layout.list_item_gallery, viewGroup, false);
             return new PhotoHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(PhotoHolder photoHolder, int position) {
+            GalleryItem galleryItem = mGalleryItems.get(position);
+//            get the resource drawable, and bind it to the photo holder.
+            Drawable placeholder = getResources().getDrawable(R.drawable.bill_up_close);
+            photoHolder.bindDrawable(placeholder);
+            mPhotoHolderThumbnailDownloader.queueThumbnail(photoHolder, galleryItem.getUrl());
         }
 
         @Override
@@ -124,20 +202,22 @@ public class PhotoGalleryFragment extends Fragment {
             return mGalleryItems.size();
         }
 
-        @Override
-        public void onBindViewHolder(@NonNull PhotoHolder photoHolder, int i) {
-            GalleryItem galleryItem = mGalleryItems.get(i);
-//            get the resource drawable, and bind it to the photo holder.
-            Drawable placeholder = getResources().getDrawable(R.drawable.bill_up_close);
-            photoHolder.bindDrawable(placeholder);
-            mPhotoHolderThumbnailDownloader.queueThumbnail(photoHolder, galleryItem.getUrl());
-        }
     }
 
     private class FetchItemsTask extends AsyncTask<Void,Void,List<GalleryItem>> {
+        private String mQuery;
         @Override
         protected List<GalleryItem> doInBackground(Void... params) {
-            return new FlickrFetcher().fetchItems();
+            String query = "robot";
+            if (query == null) {
+                return new FlickrFetcher().fetchRecentPhotos();
+            } else {
+                return new FlickrFetcher().searchPhotos(query);
+            }
+        }
+
+        public FetchItemsTask(String query) {
+            mQuery = query;
         }
 
         @Override

@@ -49,13 +49,13 @@ public class ThumbnailDownloader<T> extends HandlerThread {
     public void queueThumbnail(T target, String url) {
 //        add the url with the MESSAGEDOWNLOAD as key to the map, and send the message to the queue.
 //        use the map to pull the latest - recycle view's recycle and reuse the ViewHolders
+        Log.i(TAG, "Got a URL:" + url);
         if (url == null) {
             mRequestMap.remove(target);
         } else {
             mRequestMap.put(target, url);
             mRequestHandler.obtainMessage(MESSAGE_DOWNLOAD, target).sendToTarget();
         }
-        Log.i(TAG, "Got a URL:" + url);
     }
 
     @Override
